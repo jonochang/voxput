@@ -308,6 +308,100 @@ cd extensions/gnome
 make uninstall
 ```
 
+## NixOS / Home Manager integration
+
+Add voxput to your flake inputs and apply the overlay, then import the Home
+Manager module. The module manages the `voxputd` systemd user service, the
+D-Bus activation file, and optionally the GNOME Shell extension.
+
+### 1. Add the flake input
+
+```nix
+# flake.nix
+inputs.voxput.url = "github:jonochang/voxput";
+```
+
+### 2. Apply the overlay
+
+This makes `pkgs.voxput` and `pkgs.voxputGnomeExtension` available:
+
+```nix
+nixpkgs.overlays = [ inputs.voxput.overlays.default ];
+```
+
+### 3. Import the Home Manager module
+
+```nix
+home-manager.users.alice = {
+  imports = [ inputs.voxput.homeManagerModules.default ];
+};
+```
+
+### 4. Configure
+
+Minimal (daemon only):
+
+```nix
+services.voxput = {
+  enable    = true;
+  apiKeyFile = config.sops.secrets.groq-api-key.path;  # or age.secrets…
+};
+```
+
+With GNOME extension:
+
+```nix
+services.voxput = {
+  enable    = true;
+  apiKeyFile = config.sops.secrets.groq-api-key.path;
+
+  gnome = {
+    enable       = true;
+    shortcut     = [ "<Super>v" ];      # default: Super+M
+    showNotification = true;            # default: true
+  };
+};
+
+# Enable the extension in GNOME Shell (Home Manager 23.11+):
+programs.gnome-shell.extensions = [
+  { package = config.services.voxput.gnome.package; }
+];
+```
+
+### API key
+
+Pass a file whose contents are shell-style environment variable assignments:
+
+```
+GROQ_API_KEY=gsk_...
+```
+
+With **sops-nix**:
+
+```nix
+sops.secrets.groq-api-key = { sopsFile = ./secrets.yaml; };
+services.voxput.apiKeyFile = config.sops.secrets.groq-api-key.path;
+```
+
+With **agenix**:
+
+```nix
+age.secrets.groq-api-key = { file = ./secrets/groq-api-key.age; };
+services.voxput.apiKeyFile = config.age.secrets.groq-api-key.path;
+```
+
+### All module options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable` | bool | — | Enable the voxputd daemon |
+| `package` | package | `pkgs.voxput` | The voxput package |
+| `apiKeyFile` | path\|null | `null` | File containing `GROQ_API_KEY=…` |
+| `gnome.enable` | bool | — | Enable the GNOME Shell extension |
+| `gnome.package` | package | `pkgs.voxputGnomeExtension` | Extension package |
+| `gnome.shortcut` | \[str\] | `["<Super>m"]` | Toggle-recording keybinding |
+| `gnome.showNotification` | bool | `true` | Notify on transcript completion |
+
 ## Roadmap
 
 - **v0.1:** CLI one-shot mode — `voxput record`
