@@ -43,10 +43,9 @@ rustPlatform.buildRustPackage (finalAttrs: {
     alsa-lib
   ];
 
-  # Integration tests require a live microphone and GROQ_API_KEY
-  checkFlags = [
-    "--skip=groq_integration"
-  ];
+  # Only run unit tests — integration tests require network access and GROQ_API_KEY.
+  # Run them manually: GROQ_API_KEY=gsk_... cargo test --test groq_integration
+  cargoTestFlags = [ "--lib" "--bins" ];
 
   passthru.tests.version = testers.testVersion {
     package = finalAttrs.finalPackage;

@@ -50,6 +50,13 @@ async fn transcribes_voice_fixture_to_expected_text() {
 
 #[tokio::test]
 async fn invalid_api_key_returns_provider_error() {
+    // Requires network access — skip when GROQ_API_KEY is not set, as that
+    // signals we're in a sandboxed/offline environment.
+    if api_key().is_none() {
+        eprintln!("GROQ_API_KEY not set — skipping network test");
+        return;
+    }
+
     let wav_bytes = std::fs::read(VOICE_FIXTURE)
         .unwrap_or_else(|e| panic!("Could not read voice fixture at {VOICE_FIXTURE}: {e}"));
 
