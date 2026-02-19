@@ -3,7 +3,7 @@
     "description": "Voice-to-text dictation with push-to-talk. Shows a microphone indicator in the top bar and lets you bind a keyboard shortcut to start/stop recording via voxputd.",
     "uuid": "voxput@jonochang.github.com",
     "version": 1,
-    "shell-version": ["45", "46", "47", "48"],
+    "shell-version": ["45", "46", "47", "48", "49"],
     "url": "https://github.com/jonochang/voxput",
     "settings-schema": "org.gnome.shell.extensions.voxput"
 }
