@@ -69,6 +69,7 @@ export default class VoxputExtension extends Extension {
         this._proxy = null;
         this._signalId = null;
         this._nameWatchId = null;
+        this._keyReleaseId = null;
 
         this._buildIndicator();
         this._connectDbus();
@@ -77,6 +78,7 @@ export default class VoxputExtension extends Extension {
 
     disable() {
         this._unbindShortcut();
+        this._cleanupKeyRelease();
         this._disconnectDbus();
         this._destroyIndicator();
         this._settings = null;
@@ -246,22 +248,55 @@ export default class VoxputExtension extends Extension {
         });
     }
 
+    _startPushToTalk() {
+        if (!this._proxy) return;
+        // Guard against key-repeat firing this multiple times
+        if (this._keyReleaseId) return;
+
+        this._proxy.StartRecordingRemote((_result, error) => {
+            if (error)
+                logError(error, 'Voxput: start recording failed');
+        });
+
+        // Stop on the first key-release event (any key)
+        this._keyReleaseId = global.stage.connect('key-release-event', () => {
+            this._stopPushToTalk();
+            return false; // propagate the event
+        });
+    }
+
+    _stopPushToTalk() {
+        this._cleanupKeyRelease();
+        if (!this._proxy) return;
+        this._proxy.StopRecordingRemote((_result, error) => {
+            if (error)
+                logError(error, 'Voxput: stop recording failed');
+        });
+    }
+
+    _cleanupKeyRelease() {
+        if (this._keyReleaseId) {
+            global.stage.disconnect(this._keyReleaseId);
+            this._keyReleaseId = null;
+        }
+    }
+
     _ensureDaemonRunning() {
         // Triggers D-Bus activation; voxputd starts if not already running.
         this._proxy?.GetStatusRemote(() => {});
     }
 
     // -----------------------------------------------------------------------
-    // Keyboard shortcut
+    // Keyboard shortcut (push-to-talk: hold to record, release to stop)
     // -----------------------------------------------------------------------
 
     _bindShortcut() {
         Main.wm.addKeybinding(
             'toggle-recording',
             this._settings,
-            Meta.KeyBindingFlags.NONE,
+            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            () => this._toggle(),
+            () => this._startPushToTalk(),
         );
     }
 

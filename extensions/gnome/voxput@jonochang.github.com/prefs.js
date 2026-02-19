@@ -22,12 +22,12 @@ export default class VoxputPreferences extends ExtensionPreferences {
         // ---- Shortcut group ----
         const shortcutGroup = new Adw.PreferencesGroup({
             title: _('Keyboard Shortcut'),
-            description: _('Shortcut to toggle recording. First press starts; second press stops and transcribes.'),
+            description: _('Hold the shortcut to record; release any key to stop and transcribe.'),
         });
         page.add(shortcutGroup);
 
         const shortcutRow = new Adw.ActionRow({
-            title: _('Toggle Recording'),
+            title: _('Push to Talk'),
             subtitle: _('Click to change'),
         });
         shortcutGroup.add(shortcutRow);
