@@ -30,10 +30,10 @@ export GROQ_API_KEY=gsk_...
 ### Record and transcribe
 
 ```bash
-# 5-second recording (default), print to stdout
+# Record until any key is pressed (default), print to stdout
 voxput record
 
-# Custom duration
+# Record until keypress OR 10 seconds, whichever comes first
 voxput record --duration 10
 
 # Copy result to clipboard instead
@@ -99,10 +99,11 @@ mic → cpal (audio capture) → WAV encode → Groq Whisper API → stdout / cl
 ```
 
 1. `voxput record` opens the default microphone via [cpal](https://github.com/RustAudio/cpal)
-2. Records raw PCM samples for the specified duration at 16 kHz mono
-3. Encodes them as a 16-bit WAV in memory (no temp files)
-4. POSTs the WAV to the Groq Whisper API as `multipart/form-data`
-5. Prints the transcript to stdout (or writes to clipboard)
+2. Enables terminal raw mode and waits for any keypress (via [crossterm](https://github.com/crossterm-rs/crossterm))
+3. Records raw PCM samples at 16 kHz mono until the key is pressed (or `--duration` expires)
+4. Encodes them as a 16-bit WAV in memory (no temp files)
+5. POSTs the WAV to the Groq Whisper API as `multipart/form-data`
+6. Restores the terminal and prints the transcript to stdout (or writes to clipboard)
 
 Status messages go to stderr so stdout is clean for piping.
 

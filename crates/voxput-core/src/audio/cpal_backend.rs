@@ -1,6 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::audio::{AudioBackend, AudioData, DeviceInfo};
 use crate::errors::{Result, VoxputError};
@@ -27,7 +28,12 @@ impl AudioBackend for CpalBackend {
         Ok(devices)
     }
 
-    fn record(&self, duration_secs: f32, device_name: Option<&str>) -> Result<AudioData> {
+    fn record(
+        &self,
+        duration_secs: f32,
+        stop: Arc<AtomicBool>,
+        device_name: Option<&str>,
+    ) -> Result<AudioData> {
         let host = cpal::default_host();
 
         let device = match device_name {
@@ -35,9 +41,7 @@ impl AudioBackend for CpalBackend {
                 .input_devices()
                 .map_err(|e| VoxputError::Audio(format!("Failed to enumerate devices: {e}")))?
                 .find(|d| d.name().ok().as_deref() == Some(name))
-                .ok_or_else(|| {
-                    VoxputError::Audio(format!("Device '{}' not found", name))
-                })?,
+                .ok_or_else(|| VoxputError::Audio(format!("Device '{name}' not found")))?,
             None => host
                 .default_input_device()
                 .ok_or(VoxputError::NoDevice)?,
@@ -58,7 +62,6 @@ impl AudioBackend for CpalBackend {
             .build_input_stream(
                 &config.into(),
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    // Mix down to mono if necessary
                     let mut buf = samples_writer.lock().unwrap();
                     if channels == 1 {
                         buf.extend_from_slice(data);
@@ -80,7 +83,26 @@ impl AudioBackend for CpalBackend {
             .play()
             .map_err(|e| VoxputError::Audio(format!("Failed to start stream: {e}")))?;
 
-        std::thread::sleep(Duration::from_secs_f32(duration_secs));
+        // Poll every 50 ms; exit when stop flag is set or duration expires.
+        let max_duration = if duration_secs > 0.0 {
+            Some(Duration::from_secs_f32(duration_secs))
+        } else {
+            None
+        };
+        let start = Instant::now();
+
+        loop {
+            std::thread::sleep(Duration::from_millis(50));
+            if stop.load(Ordering::Relaxed) {
+                break;
+            }
+            if let Some(max) = max_duration {
+                if start.elapsed() >= max {
+                    stop.store(true, Ordering::Relaxed); // tell listener to exit too
+                    break;
+                }
+            }
+        }
 
         drop(stream);
 
@@ -103,7 +125,6 @@ impl AudioBackend for CpalBackend {
 
 /// Try to get a 16 kHz mono f32 config; fall back to device default.
 fn select_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig> {
-    // Check if 16 kHz is supported
     let supported = device
         .supported_input_configs()
         .map_err(|e| VoxputError::Audio(format!("Failed to query configs: {e}")))?;
@@ -117,7 +138,6 @@ fn select_config(device: &cpal::Device) -> Result<cpal::SupportedStreamConfig> {
         }
     }
 
-    // Fall back to device default
     device
         .default_input_config()
         .map_err(|e| VoxputError::Audio(format!("Failed to get default config: {e}")))

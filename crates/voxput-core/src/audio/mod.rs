@@ -2,6 +2,7 @@ pub mod cpal_backend;
 pub mod wav;
 
 use crate::errors::Result;
+use std::sync::{atomic::AtomicBool, Arc};
 
 /// Captured audio data ready for transcription.
 #[derive(Debug, Clone)]
@@ -26,6 +27,12 @@ pub trait AudioBackend: Send + Sync {
     /// List available input devices.
     fn list_devices(&self) -> Result<Vec<DeviceInfo>>;
 
-    /// Record audio for the specified duration in seconds.
-    fn record(&self, duration_secs: f32, device_name: Option<&str>) -> Result<AudioData>;
+    /// Record audio until `stop` is set or `duration_secs` elapses, whichever comes first.
+    /// A `duration_secs` of `0.0` means no time limit — only the stop flag ends recording.
+    fn record(
+        &self,
+        duration_secs: f32,
+        stop: Arc<AtomicBool>,
+        device_name: Option<&str>,
+    ) -> Result<AudioData>;
 }

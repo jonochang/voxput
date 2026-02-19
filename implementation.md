@@ -5,8 +5,8 @@
 The MVP is a CLI-only, one-shot dictation tool. No daemon, no GNOME extension.
 
 **What it does:**
-- `voxput record` — captures audio from the default mic, sends to Groq Whisper API, prints transcription to stdout
-- `voxput record --duration 5` — timed recording (default 5 seconds)
+- `voxput record` — captures audio from the default mic until any key is pressed, sends to Groq Whisper API, prints transcription to stdout
+- `voxput record --duration 5` — timed recording; stops after 5 seconds OR on keypress, whichever comes first
 - `voxput record --output clipboard` — copy result to clipboard
 - `voxput record --output both` — stdout + clipboard
 - `voxput devices` — list available audio input devices
@@ -22,13 +22,20 @@ The MVP is a CLI-only, one-shot dictation tool. No daemon, no GNOME extension.
 **End-to-end flow:**
 ```
 voxput record
+  -> enable terminal raw mode (crossterm)
   -> capture audio from default mic via cpal (16kHz mono)
-  -> accumulate samples in memory
-  -> encode to WAV in memory via hound (16-bit PCM)
+  -> keypress listener thread sets stop flag on any keypress
+  -> recording loop polls stop flag (and optional duration limit)
+  -> encode captured samples to WAV in memory (16-bit PCM)
   -> POST WAV as multipart/form-data to Groq Whisper API
   -> parse JSON response
-  -> write transcript text to stdout (or clipboard)
+  -> restore terminal, write transcript text to stdout (or clipboard)
 ```
+
+**Stop behaviour:**
+- Default (`voxput record`): records until any key is pressed (no time limit)
+- `--duration N`: records until keypress OR N seconds, whichever comes first
+- The stop flag is an `Arc<AtomicBool>` shared between the keypress thread and the recording loop; either side can set it
 
 ---
 
@@ -261,7 +268,8 @@ pub struct DeviceInfo {
 
 pub trait AudioBackend: Send + Sync {
     fn list_devices(&self) -> Result<Vec<DeviceInfo>>;
-    fn record(&self, duration_secs: f32, device_name: Option<&str>) -> Result<AudioData>;
+    /// `duration_secs` of 0.0 = no time limit; stop flag drives recording end.
+    fn record(&self, duration_secs: f32, stop: Arc<AtomicBool>, device_name: Option<&str>) -> Result<AudioData>;
 }
 ```
 

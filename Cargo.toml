@@ -38,6 +38,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # CLI
 clap = { version = "4", features = ["derive"] }
 
+# Terminal
+crossterm = "0.28"
+
 # Config
 dirs = "5"
 
