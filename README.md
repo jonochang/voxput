@@ -222,33 +222,91 @@ dbus-monitor "type='signal',interface='com.github.jonochang.Voxput1'"
 
 ## GNOME Shell extension (v0.3)
 
-The extension lives in `extensions/gnome/`. It adds a top-bar microphone
-indicator and lets you configure a keyboard shortcut for push-to-talk entirely
-within GNOME Settings.
+The extension lives in `extensions/gnome/`. It adds a microphone indicator to
+the top bar and a configurable keyboard shortcut for hands-free push-to-talk.
+`voxputd` auto-starts via D-Bus the first time you press the shortcut — no
+separate systemd setup required.
 
 ### Installation
+
+**1. Build and install the binaries** (if not done already):
+
+```bash
+cargo build --release
+install -Dm755 target/release/voxput   ~/.local/bin/voxput
+install -Dm755 target/release/voxputd  ~/.local/bin/voxputd
+```
+
+**2. Set your API key** so the daemon can reach Groq:
+
+```bash
+systemctl --user set-environment GROQ_API_KEY=gsk_...
+```
+
+Or add `api_key = "gsk_..."` under `[providers.groq]` in
+`~/.config/voxput/config.toml`.
+
+**3. Install the extension and D-Bus activation file**:
 
 ```bash
 cd extensions/gnome
 make install
+```
 
-# Restart GNOME Shell (Wayland: log out and back in; X11: Alt+F2 → 'r')
+This copies the extension to `~/.local/share/gnome-shell/extensions/` and
+installs the D-Bus session service file to `~/.local/share/dbus-1/services/`,
+which tells the session bus how to auto-start `voxputd`.
+
+**4. Restart GNOME Shell and enable the extension**:
+
+```bash
+# Wayland: log out and log back in
+# X11: Alt+F2 → type 'r' → Enter
+
 gnome-extensions enable voxput@jonochang.github.com
 ```
 
-### How it works
+Or toggle it on in the **Extensions** app.
 
-- The extension connects to `voxputd` on D-Bus at startup.
-- Pressing the configured shortcut (default: `Super+M`) calls `Toggle()`.
-- The top-bar icon changes colour with each state:
-  - **Grey / muted mic** — idle
-  - **Red mic** — recording
-  - **Yellow spinner** — transcribing
-  - **Red warning** — error
-- When transcription completes, the result appears in the popup menu and
-  optionally as a GNOME notification.
-- Configure the shortcut and notification preferences via the extension
-  settings (Extensions app → Voxput → ⚙).
+### Usage
+
+- Press **Super+M** (default) to start recording. The top-bar icon turns red.
+- Press **Super+M** again to stop. The icon turns yellow while transcribing.
+- When done, the transcript is **copied to the clipboard automatically** and a
+  notification appears. Switch to your target window and press `Ctrl+V`.
+- Click the indicator to open the popup menu, which shows the last transcript
+  and a manual Start/Stop Recording toggle.
+
+### Top-bar icon states
+
+| Icon | Colour | Meaning |
+|------|--------|---------|
+| Muted mic | Grey | Idle |
+| Mic | Red | Recording |
+| Spinner | Yellow | Transcribing |
+| Warning | Red | Error |
+
+### Settings
+
+Open the **Extensions** app → Voxput → ⚙, or run:
+
+```bash
+gnome-extensions prefs voxput@jonochang.github.com
+```
+
+Options:
+- **Toggle Recording shortcut** — change the keybinding (click "Change" and
+  press the desired combination)
+- **Show transcript notification** — toggle the GNOME notification on completion
+- **Auto-start voxputd** — start the daemon automatically when the extension
+  enables (on by default; requires the D-Bus activation file to be installed)
+
+### Uninstall
+
+```bash
+cd extensions/gnome
+make uninstall
+```
 
 ## Roadmap
 
