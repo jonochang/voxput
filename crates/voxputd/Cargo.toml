@@ -1,25 +1,19 @@
 [package]
-name = "voxput"
+name = "voxputd"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "voxput"
+name = "voxputd"
 path = "src/main.rs"
 
 [dependencies]
 voxput-core = { path = "../voxput-core" }
-clap = { workspace = true }
+zbus = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
 miette = { workspace = true }
-serde_json = { workspace = true }
-crossterm = { workspace = true }
-zbus = { workspace = true }
-
-[dev-dependencies]
-assert_cmd = { workspace = true }
-predicates = { workspace = true }
-tokio = { workspace = true }
+serde = { workspace = true }

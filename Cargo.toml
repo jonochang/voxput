@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/voxput-core", "crates/voxput-cli"]
+members = ["crates/voxput-core", "crates/voxput-cli", "crates/voxputd"]
 
 [workspace.package]
 version = "0.1.0"
@@ -43,6 +43,9 @@ crossterm = "0.28"
 
 # Config
 dirs = "5"
+
+# D-Bus IPC
+zbus = { version = "5", features = ["tokio"] }
 
 # Dev
 insta = { version = "1", features = ["json"] }
