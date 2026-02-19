@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.voxput"
+          path="/org/gnome/shell/extensions/voxput/">
+
+    <key name="toggle-recording" type="as">
+      <default>['&lt;Super&gt;m']</default>
+      <summary>Toggle Recording shortcut</summary>
+      <description>Keyboard shortcut to toggle voice recording via voxputd. First press starts recording; second press stops and transcribes.</description>
+    </key>
+
+    <key name="show-transcript-notification" type="b">
+      <default>true</default>
+      <summary>Show transcript notification</summary>
+      <description>Display a GNOME notification when transcription completes.</description>
+    </key>
+
+    <key name="daemon-auto-start" type="b">
+      <default>true</default>
+      <summary>Auto-start voxputd</summary>
+      <description>Automatically start voxputd if it is not already running when the extension activates.</description>
+    </key>
+
+  </schema>
+</schemalist>

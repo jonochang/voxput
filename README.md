@@ -16,7 +16,8 @@ Powered by the [Groq Whisper API](https://console.groq.com/docs/speech-text) for
 git clone https://github.com/jonochang/voxput
 cd voxput
 cargo build --release
-# binary at target/release/voxput
+# CLI: target/release/voxput
+# Daemon: target/release/voxputd
 ```
 
 ## Usage
@@ -107,9 +108,77 @@ mic → cpal (audio capture) → WAV encode → Groq Whisper API → stdout / cl
 
 Status messages go to stderr so stdout is clean for piping.
 
+## Daemon mode (v0.2)
+
+A background daemon (`voxputd`) exposes a D-Bus service on the session bus so
+you can start/stop recording without keeping a terminal open.
+
+### Starting the daemon
+
+```bash
+# Start manually
+voxputd
+
+# Or install as a systemd user service
+cp contrib/voxputd.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now voxputd
+```
+
+### Push-to-talk via CLI commands
+
+```bash
+voxput start    # tell daemon to start recording
+voxput stop     # stop recording → triggers transcription
+voxput toggle   # start if idle, stop if recording
+voxput status   # show current state (idle/recording/transcribing/error)
+voxput status --json
+```
+
+You can bind `voxput toggle` to a key using any Linux hotkey tool:
+
+```bash
+# ~/.config/sxhkd/sxhkdrc (sxhkd)
+super + m
+    voxput toggle
+```
+
+The daemon emits a `StateChanged(state, transcript)` D-Bus signal whenever its
+state changes. The last transcript is also available via `voxput status`.
+
+## GNOME Shell extension (v0.3)
+
+The extension lives in `extensions/gnome/`. It adds a top-bar microphone
+indicator and lets you configure a keyboard shortcut for push-to-talk entirely
+within GNOME Settings.
+
+### Installation
+
+```bash
+cd extensions/gnome
+make install
+
+# Restart GNOME Shell (Wayland: log out and back in; X11: Alt+F2 → 'r')
+gnome-extensions enable voxput@jonochang.github.com
+```
+
+### How it works
+
+- The extension connects to `voxputd` on D-Bus at startup.
+- Pressing the configured shortcut (default: `Super+M`) calls `Toggle()`.
+- The top-bar icon changes colour with each state:
+  - **Grey / muted mic** — idle
+  - **Red mic** — recording
+  - **Yellow spinner** — transcribing
+  - **Red warning** — error
+- When transcription completes, the result appears in the popup menu and
+  optionally as a GNOME notification.
+- Configure the shortcut and notification preferences via the extension
+  settings (Extensions app → Voxput → ⚙).
+
 ## Roadmap
 
-- **v0.1 (current):** CLI one-shot mode — `voxput record`
-- **v0.2:** Background daemon (`voxputd`) with IPC, push-to-talk support
-- **v0.3:** GNOME Shell extension with top-bar indicator
+- **v0.1:** CLI one-shot mode — `voxput record`
+- **v0.2 (done):** Background daemon (`voxputd`) with D-Bus IPC + push-to-talk
+- **v0.3 (done):** GNOME Shell extension with top-bar indicator and shortcut
 - **v0.4:** Type-at-cursor output, additional providers (OpenAI, local whisper.cpp)

@@ -13,7 +13,7 @@
 
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "voxput";
-  version = "0.1.0";
+  version = "0.3.0";
 
   src = fetchFromGitHub {
     owner = "jonochang";
@@ -41,6 +41,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     package = finalAttrs.finalPackage;
     command = "voxput --version";
   };
+
 
   meta = {
     description = "Voice-to-text dictation tool powered by Groq Whisper";

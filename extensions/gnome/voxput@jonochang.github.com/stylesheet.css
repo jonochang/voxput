@@ -1,0 +1,29 @@
+/*
+ * Voxput GNOME Shell extension stylesheet
+ * Applied to the top-bar icon via St.Icon.style_class
+ */
+
+/* Base icon styling */
+.voxput-icon {
+    icon-size: 16px;
+}
+
+/* Idle: muted/grey — default appearance */
+.voxput-idle {
+    /* No colour override; inherits panel foreground */
+}
+
+/* Recording: red microphone */
+.voxput-recording {
+    color: #e01b24;   /* GNOME red */
+}
+
+/* Transcribing: spinning icon, yellow tint */
+.voxput-transcribing {
+    color: #e5a50a;   /* GNOME yellow */
+}
+
+/* Error: red exclamation */
+.voxput-error {
+    color: #e01b24;
+}
