@@ -16,8 +16,10 @@ Powered by the [Groq Whisper API](https://console.groq.com/docs/speech-text) for
 git clone https://github.com/jonochang/voxput
 cd voxput
 cargo build --release
-# CLI: target/release/voxput
-# Daemon: target/release/voxputd
+
+# Install both binaries to ~/.local/bin (or any directory on your $PATH)
+install -Dm755 target/release/voxput   ~/.local/bin/voxput
+install -Dm755 target/release/voxputd  ~/.local/bin/voxputd
 ```
 
 ## Usage
@@ -110,41 +112,107 @@ Status messages go to stderr so stdout is clean for piping.
 
 ## Daemon mode (v0.2)
 
-A background daemon (`voxputd`) exposes a D-Bus service on the session bus so
-you can start/stop recording without keeping a terminal open.
+`voxputd` is a background daemon that exposes a D-Bus service on the session
+bus. It holds a persistent microphone stream and lets you start/stop recording
+from any other program without keeping a terminal open — ideal for hotkey
+bindings and the GNOME extension.
 
-### Starting the daemon
+### 1. Make the API key available to the daemon
+
+The daemon reads `GROQ_API_KEY` from the environment, or from
+`~/.config/voxput/config.toml`. The simplest approach is to add it to your
+session environment so it is inherited by all user services:
 
 ```bash
-# Start manually
-voxputd
+# Option A — persist in systemd user environment (survives reboots)
+systemctl --user set-environment GROQ_API_KEY=gsk_...
 
-# Or install as a systemd user service
-cp contrib/voxputd.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now voxputd
+# Option B — add to ~/.config/voxput/config.toml
+mkdir -p ~/.config/voxput
+cat > ~/.config/voxput/config.toml <<'EOF'
+[providers.groq]
+api_key = "gsk_..."
+EOF
 ```
 
-### Push-to-talk via CLI commands
+### 2. Install and start the daemon
 
 ```bash
-voxput start    # tell daemon to start recording
-voxput stop     # stop recording → triggers transcription
+# Copy the systemd service unit
+cp contrib/voxputd.service ~/.config/systemd/user/
+
+# Tell systemd to pick it up, then enable and start
+systemctl --user daemon-reload
+systemctl --user enable --now voxputd
+
+# Confirm it is running
+systemctl --user status voxputd
+```
+
+To run the daemon manually (foreground, logs to stderr) instead of via
+systemd:
+
+```bash
+GROQ_API_KEY=gsk_... voxputd
+```
+
+### 3. Verify the connection
+
+```bash
+voxput status
+# state:      idle
+```
+
+If the daemon is not running you will see a hint:
+
+```
+Error: Could not connect to voxputd
+Hint: start the daemon with `voxputd` or `systemctl --user start voxputd`
+```
+
+### 4. Control recording via CLI
+
+```bash
+voxput start    # begin recording
+voxput stop     # stop recording → transcription runs in the daemon
 voxput toggle   # start if idle, stop if recording
-voxput status   # show current state (idle/recording/transcribing/error)
+voxput status   # show state (idle / recording / transcribing / error)
 voxput status --json
 ```
 
-You can bind `voxput toggle` to a key using any Linux hotkey tool:
+### 5. Check daemon logs
 
 ```bash
-# ~/.config/sxhkd/sxhkdrc (sxhkd)
-super + m
-    voxput toggle
+journalctl --user -u voxputd -f
 ```
 
-The daemon emits a `StateChanged(state, transcript)` D-Bus signal whenever its
-state changes. The last transcript is also available via `voxput status`.
+Set `RUST_LOG=debug` in the service environment for verbose output:
+
+```bash
+systemctl --user set-environment RUST_LOG=debug
+systemctl --user restart voxputd
+```
+
+### Push-to-talk with a hotkey tool
+
+Any tool that can run a shell command on a key event works:
+
+```bash
+# sxhkd (~/.config/sxhkd/sxhkdrc)
+super + m
+    voxput toggle
+
+# xbindkeys (~/.xbindkeysrc)
+"voxput toggle"
+  Mod4 + m
+```
+
+The daemon emits a `StateChanged(state, transcript)` D-Bus signal on every
+transition, which you can watch with:
+
+```bash
+dbus-monitor "type='signal',interface='com.github.jonochang.Voxput1'"
+```
 
 ## GNOME Shell extension (v0.3)
 
