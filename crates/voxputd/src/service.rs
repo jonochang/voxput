@@ -7,6 +7,7 @@ use zbus::{interface, object_server::SignalEmitter};
 
 use voxput_core::{
     audio::{cpal_backend::CpalBackend, wav::encode_wav, AudioBackend, MIN_DURATION_SECS},
+    output::{create_sink, OutputTarget},
     provider::{groq::GroqProvider, TranscribeOptions, TranscriptionProvider},
     state::{DictationEvent, DictationState, DictationStateMachine},
 };
@@ -21,6 +22,7 @@ pub(crate) struct ServiceInner {
     model: Option<String>,
     device_name: Option<String>,
     language: Option<String>,
+    output_target: OutputTarget,
     /// Stored after D-Bus connection is built; used to emit signals from background tasks.
     pub(crate) connection: OnceCell<zbus::Connection>,
 }
@@ -50,6 +52,7 @@ impl VoxputService {
         model: Option<String>,
         device_name: Option<String>,
         language: Option<String>,
+        output_target: OutputTarget,
     ) -> Self {
         Self {
             inner: Arc::new(ServiceInner {
@@ -61,6 +64,7 @@ impl VoxputService {
                 model,
                 device_name,
                 language,
+                output_target,
                 connection: OnceCell::new(),
             }),
         }
@@ -221,6 +225,17 @@ async fn run_pipeline(inner: Arc<ServiceInner>) {
     *inner.last_transcript.lock().unwrap() = transcript_text.clone();
     inner.emit_state("idle", &transcript_text).await;
     tracing::info!("Pipeline: done — {transcript_text}");
+
+    // 7. Write to configured output (clipboard by default)
+    let text = transcript_text.clone();
+    let target = inner.output_target;
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = create_sink(target).write(&text) {
+            tracing::warn!("Output sink error: {e}");
+        }
+    })
+    .await
+    .ok();
 }
 
 async fn pipeline_error(inner: &Arc<ServiceInner>, error: &str) {

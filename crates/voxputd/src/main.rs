@@ -3,7 +3,7 @@ mod service;
 use miette::IntoDiagnostic;
 use service::VoxputService;
 use tracing_subscriber::EnvFilter;
-use voxput_core::config::load_config;
+use voxput_core::{config::load_config, output::OutputTarget};
 use zbus::connection;
 
 #[tokio::main]
@@ -18,7 +18,13 @@ async fn main() -> miette::Result<()> {
 
     tracing::info!("Starting voxputd...");
 
-    let service = VoxputService::new(api_key, config.model, config.device, None);
+    // Daemon defaults to clipboard; config can override to "both" (clipboard + log).
+    let output_target = match config.output_target.as_str() {
+        "both" => OutputTarget::Both,
+        _ => OutputTarget::Clipboard,
+    };
+
+    let service = VoxputService::new(api_key, config.model, config.device, None, output_target);
     let inner = service.inner_arc();
 
     let conn = connection::Builder::session()

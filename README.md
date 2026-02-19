@@ -92,6 +92,9 @@ device = "default"
 sample_rate = 16000
 
 [output]
+# "stdout" (default for voxput record), "clipboard", or "both"
+# voxputd always copies to clipboard regardless of this setting,
+# unless you set "both" to also log transcripts to stdout.
 target = "stdout"
 ```
 
@@ -179,6 +182,9 @@ voxput toggle   # start if idle, stop if recording
 voxput status   # show state (idle / recording / transcribing / error)
 voxput status --json
 ```
+
+When transcription finishes the daemon copies the result to the clipboard
+automatically. Switch to your target window and press `Ctrl+V` to paste.
 
 ### 5. Check daemon logs
 
