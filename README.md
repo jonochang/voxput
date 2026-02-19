@@ -312,7 +312,8 @@ make uninstall
 
 Add voxput to your flake inputs and apply the overlay, then import the Home
 Manager module. The module manages the `voxputd` systemd user service, the
-D-Bus activation file, and optionally the GNOME Shell extension.
+D-Bus activation file, `~/.config/voxput/config.toml`, and optionally the
+GNOME Shell extension — no manual file creation needed.
 
 ### 1. Add the flake input
 
@@ -339,12 +340,12 @@ home-manager.users.alice = {
 
 ### 4. Configure
 
-Minimal (daemon only):
+Minimal (daemon only, API key written to config.toml):
 
 ```nix
 services.voxput = {
-  enable    = true;
-  apiKeyFile = config.sops.secrets.groq-api-key.path;  # or age.secrets…
+  enable = true;
+  apiKey = "gsk_...";   # written to ~/.config/voxput/config.toml
 };
 ```
 
@@ -352,13 +353,13 @@ With GNOME extension:
 
 ```nix
 services.voxput = {
-  enable    = true;
-  apiKeyFile = config.sops.secrets.groq-api-key.path;
+  enable = true;
+  apiKey = "gsk_...";
 
   gnome = {
-    enable       = true;
-    shortcut     = [ "<Super>v" ];      # default: Super+M
-    showNotification = true;            # default: true
+    enable           = true;
+    shortcut         = [ "<Super>v" ];   # default: Super+M
+    showNotification = true;             # default: true
   };
 };
 
@@ -369,6 +370,18 @@ programs.gnome-shell.extensions = [
 ```
 
 ### API key
+
+**Option A — inline** (convenient for personal machines):
+
+```nix
+services.voxput.apiKey = "gsk_...";
+```
+
+The module writes the key into `~/.config/voxput/config.toml` (managed by
+Home Manager). This is fine when the config is not shared or stored in a
+public repo.
+
+**Option B — secrets manager** (keeps the key out of the Nix store):
 
 Pass a file whose contents are shell-style environment variable assignments:
 
@@ -396,7 +409,10 @@ services.voxput.apiKeyFile = config.age.secrets.groq-api-key.path;
 |--------|------|---------|-------------|
 | `enable` | bool | — | Enable the voxputd daemon |
 | `package` | package | `pkgs.voxput` | The voxput package |
-| `apiKeyFile` | path\|null | `null` | File containing `GROQ_API_KEY=…` |
+| `apiKey` | str\|null | `null` | API key written into managed config.toml |
+| `apiKeyFile` | path\|null | `null` | File containing `GROQ_API_KEY=…` (runtime secret) |
+| `model` | str\|null | `null` | Whisper model (default: `whisper-large-v3-turbo`) |
+| `device` | str\|null | `null` | Audio input device name |
 | `gnome.enable` | bool | — | Enable the GNOME Shell extension |
 | `gnome.package` | package | `pkgs.voxputGnomeExtension` | Extension package |
 | `gnome.shortcut` | \[str\] | `["<Super>m"]` | Toggle-recording keybinding |

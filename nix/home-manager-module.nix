@@ -9,18 +9,25 @@
 #
 #   home-manager.users.alice = { imports = [ inputs.voxput.homeManagerModules.default ]; };
 #
-# Minimal config:
+# Minimal config (API key inline — fine for non-shared machines):
 #
 #   services.voxput = {
 #     enable = true;
-#     apiKeyFile = config.sops.secrets.groq-api-key.path;  # or age.secrets…
+#     apiKey  = "gsk_...";   # or use apiKeyFile for secrets managers
+#   };
+#
+# With a secrets manager (sops-nix / agenix):
+#
+#   services.voxput = {
+#     enable     = true;
+#     apiKeyFile = config.sops.secrets.groq-api-key.path;
 #   };
 #
 # With GNOME extension:
 #
 #   services.voxput = {
 #     enable = true;
-#     apiKeyFile = config.sops.secrets.groq-api-key.path;
+#     apiKey = "gsk_...";
 #     gnome.enable = true;
 #   };
 #
@@ -34,7 +41,23 @@
 let
   cfg = config.services.voxput;
   inherit (lib)
-    mkEnableOption mkOption mkIf mkMerge types literalExpression optionalAttrs;
+    mkEnableOption mkOption mkIf mkMerge types literalExpression
+    optionalAttrs optionalString;
+
+  # Build the config.toml text from module options.
+  # Only sections/keys that are set are emitted so the file stays minimal.
+  configToml = ''
+    provider = "groq"
+
+    [providers.groq]
+    ${optionalString (cfg.apiKey != null) ''api_key = "${cfg.apiKey}"''}
+    ${optionalString (cfg.model  != null) ''model   = "${cfg.model}"''}
+
+    [audio]
+    ${optionalString (cfg.device != null) ''device = "${cfg.device}"''}
+  '';
+
+  hasInlineConfig = cfg.apiKey != null || cfg.model != null || cfg.device != null;
 in
 {
   options.services.voxput = {
@@ -51,6 +74,27 @@ in
       '';
     };
 
+    # ------------------------------------------------------------------
+    # API key — choose ONE of the three options below
+    # ------------------------------------------------------------------
+
+    apiKey = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "gsk_xxxxxxxxxxxxxxxxxxxx";
+      description = ''
+        Groq API key written directly into
+        `~/.config/voxput/config.toml`.  Convenient for personal machines
+        where the key does not need to be kept out of the Nix store.
+
+        For stricter security use `apiKeyFile` instead (the key is then
+        loaded from a runtime secret that never enters the store).
+
+        Setting either `apiKey`, `model`, or `device` causes the module
+        to manage `~/.config/voxput/config.toml` for you.
+      '';
+    };
+
     apiKeyFile = mkOption {
       type = types.nullOr types.path;
       default = null;
@@ -61,13 +105,32 @@ in
 
           GROQ_API_KEY=gsk_...
 
-        This is passed as `EnvironmentFile` to the systemd user service.
+        This is passed as `EnvironmentFile` to the systemd user service
+        so the key is loaded at runtime and never enters the Nix store.
         Use sops-nix, agenix, or any secrets manager that produces a file
-        with the above format.
+        in the above format.
+      '';
+    };
 
-        Alternatively, set the key in `~/.config/voxput/config.toml`:
-          [providers.groq]
-          api_key = "gsk_..."
+    model = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "whisper-large-v3";
+      description = ''
+        Whisper model name to use.  Defaults to `whisper-large-v3-turbo`
+        (fast, high quality).  Written into the managed config.toml when
+        set.
+      '';
+    };
+
+    device = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "default";
+      description = ''
+        ALSA/PipeWire device name for microphone input.  Leave `null` to
+        use the system default.  Written into the managed config.toml when
+        set.
       '';
     };
 
@@ -139,6 +202,14 @@ in
         SystemdService=voxputd.service
       '';
     }
+
+    # ------------------------------------------------------------------
+    # Optional: managed config.toml
+    # Generated when apiKey, model, or device is set inline.
+    # ------------------------------------------------------------------
+    (mkIf hasInlineConfig {
+      xdg.configFile."voxput/config.toml".text = configToml;
+    })
 
     # ------------------------------------------------------------------
     # Optional: GNOME Shell extension
