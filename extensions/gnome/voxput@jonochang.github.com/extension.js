@@ -70,6 +70,7 @@ export default class VoxputExtension extends Extension {
         this._signalId = null;
         this._nameWatchId = null;
         this._keyReleaseId = null;
+        this._keyReleaseTimeout = null;
 
         this._buildIndicator();
         this._connectDbus();
@@ -250,31 +251,48 @@ export default class VoxputExtension extends Extension {
 
     _startPushToTalk() {
         if (!this._proxy) return;
-        // Guard against key-repeat firing this multiple times
-        if (this._keyReleaseId) return;
+
+        // If recording: stop (covers both push-to-talk release and toggle-off).
+        if (this._state === 'recording') {
+            this._cleanupKeyRelease();
+            this._proxy.StopRecordingRemote((_result, error) => {
+                if (error)
+                    logError(error, 'Voxput: stop recording failed');
+            });
+            return;
+        }
+
+        // Ignore while transcribing or in error state.
+        if (this._state !== 'idle') return;
+
+        const startTime = Date.now();
 
         this._proxy.StartRecordingRemote((_result, error) => {
             if (error)
                 logError(error, 'Voxput: start recording failed');
         });
 
-        // Stop on the first key-release event (any key)
+        // Attempt push-to-talk via key-release.  On Wayland the event may not
+        // arrive reliably — pressing the shortcut again falls back to the
+        // state-based stop above.
         this._keyReleaseId = global.stage.connect('key-release-event', () => {
-            this._stopPushToTalk();
-            return false; // propagate the event
-        });
-    }
-
-    _stopPushToTalk() {
-        this._cleanupKeyRelease();
-        if (!this._proxy) return;
-        this._proxy.StopRecordingRemote((_result, error) => {
-            if (error)
-                logError(error, 'Voxput: stop recording failed');
+            // Debounce: ignore the instant release of the triggering keys.
+            if (Date.now() - startTime < 80)
+                return false;
+            this._cleanupKeyRelease();
+            this._proxy?.StopRecordingRemote((_result, error) => {
+                if (error)
+                    logError(error, 'Voxput: stop recording failed');
+            });
+            return false;
         });
     }
 
     _cleanupKeyRelease() {
+        if (this._keyReleaseTimeout) {
+            GLib.source_remove(this._keyReleaseTimeout);
+            this._keyReleaseTimeout = null;
+        }
         if (this._keyReleaseId) {
             global.stage.disconnect(this._keyReleaseId);
             this._keyReleaseId = null;
