@@ -11,20 +11,40 @@
   };
 
   outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+    let
+      # ------------------------------------------------------------------
+      # System-agnostic outputs
+      # ------------------------------------------------------------------
+
+      # Overlay: adds pkgs.voxput and pkgs.voxputGnomeExtension.
+      # Apply this in your NixOS / Home Manager config:
+      #   nixpkgs.overlays = [ inputs.voxput.overlays.default ];
+      overlays.default = final: _prev: {
+        voxput = final.callPackage ./package.nix { };
+        voxputGnomeExtension = final.callPackage ./nix/gnome-extension.nix { };
+      };
+
+      # Home Manager module.  Import in your HM config:
+      #   imports = [ inputs.voxput.homeManagerModules.default ];
+      homeManagerModules.default = import ./nix/home-manager-module.nix;
+
+    in
     flake-utils.lib.eachDefaultSystem (system:
       let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs { inherit system overlays; };
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) overlays.default ];
+        };
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "clippy" "rustfmt" "rust-src" ];
         };
-
-        voxputPkg = pkgs.callPackage ./package.nix { };
       in
       {
-        packages.voxput = voxputPkg;
-        packages.default = voxputPkg;
+        # Packages
+        packages.voxput            = pkgs.voxput;
+        packages.gnome-extension   = pkgs.voxputGnomeExtension;
+        packages.default           = pkgs.voxput;
 
         devShells.default = pkgs.mkShell {
           buildInputs = [
@@ -44,5 +64,7 @@
           ];
         };
       }
-    );
+    ) // {
+      inherit overlays homeManagerModules;
+    };
 }
