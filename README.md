@@ -312,8 +312,7 @@ make uninstall
 
 Add voxput to your flake inputs and apply the overlay, then import the Home
 Manager module. The module manages the `voxputd` systemd user service, the
-D-Bus activation file, `~/.config/voxput/config.toml`, and optionally the
-GNOME Shell extension — no manual file creation needed.
+D-Bus activation file, and optionally the GNOME Shell extension.
 
 ### 1. Add the flake input
 
@@ -340,13 +339,10 @@ home-manager.users.alice = {
 
 ### 4. Configure
 
-Minimal (daemon only, API key written to config.toml):
+Minimal (daemon only):
 
 ```nix
-services.voxput = {
-  enable = true;
-  apiKey = "gsk_...";   # written to ~/.config/voxput/config.toml
-};
+services.voxput.enable = true;
 ```
 
 With GNOME extension:
@@ -354,8 +350,6 @@ With GNOME extension:
 ```nix
 services.voxput = {
   enable = true;
-  apiKey = "gsk_...";
-
   gnome = {
     enable           = true;
     shortcut         = [ "<Super>v" ];   # default: Super+M
@@ -371,17 +365,31 @@ programs.gnome-shell.extensions = [
 
 ### API key
 
-**Option A — inline** (convenient for personal machines):
+Do not put your API key directly in your Nix config — it will end up in
+the world-readable Nix store and in your git history.
 
-```nix
-services.voxput.apiKey = "gsk_...";
+**Option A — manual config file** (simplest, no secrets manager needed):
+
+Create `~/.config/voxput/config.toml` outside of Nix:
+
+```toml
+[providers.groq]
+api_key = "gsk_..."
 ```
 
-The module writes the key into `~/.config/voxput/config.toml` (managed by
-Home Manager). This is fine when the config is not shared or stored in a
-public repo.
+The daemon reads this file at startup. Keep the file out of version control.
 
-**Option B — secrets manager** (keeps the key out of the Nix store):
+**Option B — systemd user environment**:
+
+```bash
+systemctl --user set-environment GROQ_API_KEY=gsk_...
+systemctl --user restart voxputd
+```
+
+Add to your shell profile or `~/.config/environment.d/groq.conf` to persist
+across reboots.
+
+**Option C — secrets manager** (`apiKeyFile`):
 
 Pass a file whose contents are shell-style environment variable assignments:
 
@@ -409,7 +417,6 @@ services.voxput.apiKeyFile = config.age.secrets.groq-api-key.path;
 |--------|------|---------|-------------|
 | `enable` | bool | — | Enable the voxputd daemon |
 | `package` | package | `pkgs.voxput` | The voxput package |
-| `apiKey` | str\|null | `null` | API key written into managed config.toml |
 | `apiKeyFile` | path\|null | `null` | File containing `GROQ_API_KEY=…` (runtime secret) |
 | `model` | str\|null | `null` | Whisper model (default: `whisper-large-v3-turbo`) |
 | `device` | str\|null | `null` | Audio input device name |
