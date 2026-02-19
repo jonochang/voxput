@@ -7,7 +7,7 @@ CLI MVP
 1. Record to stdout (default)
 Given a user has a working microphone and `GROQ_API_KEY` is set
 When they run `voxput record`
-Then the tool records audio for 5 seconds and prints the transcript to stdout
+Then the tool waits until a key is pressed to stop recording and prints the transcript to stdout
 
 2. Record with custom duration
 Given a user has a working microphone and `GROQ_API_KEY` is set

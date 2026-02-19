@@ -93,6 +93,7 @@ impl TranscriptionProvider for GroqProvider {
 
         if !status.is_success() {
             let hint = match status.as_u16() {
+                400 => " (audio too short — minimum 0.01 s; did you release the key too fast?)",
                 401 => " (invalid API key)",
                 413 => " (audio file too large; max 25 MB)",
                 429 => " (rate limited; wait and retry)",
@@ -164,6 +165,31 @@ mod tests {
 
         assert_eq!(result.text, "hello world");
         mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn transcribe_400_audio_too_short() {
+        let mut server = mockito::Server::new_with_opts_async(ServerOpts::default()).await;
+        server
+            .mock("POST", "/")
+            .with_status(400)
+            .with_body(r#"{"error":{"message":"Audio file is too short. Minimum audio length is 0.01 seconds."}}"#)
+            .create_async()
+            .await;
+
+        let provider = GroqProvider::with_base_url(
+            "test-key".into(),
+            None,
+            server.url() + "/",
+        );
+        let err = provider
+            .transcribe(&dummy_wav(), &TranscribeOptions::default())
+            .await
+            .expect_err("should fail on 400");
+
+        let msg = err.to_string();
+        assert!(msg.contains("400"), "Expected 400 in: {msg}");
+        assert!(msg.contains("too short") || msg.contains("0.01"), "Expected hint in: {msg}");
     }
 
     #[tokio::test]

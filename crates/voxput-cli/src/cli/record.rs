@@ -7,7 +7,7 @@ use crossterm::event::{self, Event};
 use crossterm::terminal;
 use voxput_core::audio::cpal_backend::CpalBackend;
 use voxput_core::audio::wav::encode_wav;
-use voxput_core::audio::AudioBackend;
+use voxput_core::audio::{AudioBackend, MIN_DURATION_SECS};
 use voxput_core::config;
 use voxput_core::errors::Result;
 use voxput_core::output::{self, OutputTarget};
@@ -95,6 +95,14 @@ pub async fn run(args: &RecordArgs) -> Result<()> {
     let _ = terminal::disable_raw_mode();
 
     sm.handle(DictationEvent::StopRecording);
+
+    // Guard: providers reject audio shorter than ~0.01 s.
+    if audio.duration_secs() < MIN_DURATION_SECS {
+        return Err(voxput_core::errors::VoxputError::Audio(format!(
+            "Recording too short ({:.3}s); hold a key longer before releasing",
+            audio.duration_secs()
+        )));
+    }
 
     let wav_bytes = encode_wav(&audio)?;
     tracing::debug!(bytes = wav_bytes.len(), "WAV encoded");
