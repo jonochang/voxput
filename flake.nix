@@ -19,32 +19,10 @@
       # Overlay: adds pkgs.voxput and pkgs.voxputGnomeExtension.
       # Apply this in your NixOS / Home Manager config:
       #   nixpkgs.overlays = [ inputs.voxput.overlays.default ];
-      #
-      # Builds from the flake source directly (no git tag required).
-      # package.nix is kept separately for eventual nixpkgs submission.
       overlays.default = final: _prev: {
-        voxput = final.rustPlatform.buildRustPackage {
-          pname = "voxput";
-          version = "0.3.0";
-
-          src = self;
-
-          # Reads Cargo.lock from source — no cargoHash to maintain.
-          cargoLock.lockFile = self + "/Cargo.lock";
-
-          nativeBuildInputs = [ final.pkg-config ];
-          buildInputs = [ final.alsa-lib ];
-
-          checkFlags = [ "--skip=groq_integration" ];
-
-          meta = with final.lib; {
-            description = "Voice-to-text dictation tool powered by Groq Whisper";
-            homepage = "https://github.com/jonochang/voxput";
-            license = licenses.mit;
-            mainProgram = "voxput";
-            platforms = platforms.linux;
-          };
-        };
+        # Pass src = self so package.nix builds from the flake source
+        # directly, without needing a git tag.
+        voxput = final.callPackage ./package.nix { src = self; };
         voxputGnomeExtension = final.callPackage ./nix/gnome-extension.nix { };
       };
 

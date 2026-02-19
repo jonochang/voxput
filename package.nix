@@ -1,9 +1,14 @@
-# This file goes in nixpkgs at: pkgs/by-name/vo/voxput/package.nix
+# Single package definition used by both the flake overlay and nixpkgs.
 #
-# To get the real cargoHash, set it to lib.fakeHash, run `nix build`,
-# and the error output will contain the correct hash.
+# Flake overlay (src = self, no tag needed):
+#   voxput = final.callPackage ./package.nix { src = self; };
+#
+# nixpkgs submission (src fetched by tag, fill in real hashes):
+#   voxput = callPackage ./package.nix { };
+#   → set hash in fetchFromGitHub and push a v<version> tag first.
 {
   lib,
+  src ? null,
   rustPlatform,
   fetchFromGitHub,
   pkg-config,
@@ -15,14 +20,20 @@ rustPlatform.buildRustPackage (finalAttrs: {
   pname = "voxput";
   version = "0.3.0";
 
-  src = fetchFromGitHub {
-    owner = "jonochang";
-    repo = "voxput";
-    tag = "v${finalAttrs.version}";
-    hash = lib.fakeHash;
-  };
+  src =
+    if src != null
+    then src
+    else
+      fetchFromGitHub {
+        owner = "jonochang";
+        repo = "voxput";
+        tag = "v${finalAttrs.version}";
+        hash = lib.fakeHash;
+      };
 
-  cargoHash = lib.fakeHash;
+  # Reads Cargo.lock from the source — works for both self and fetchFromGitHub
+  # (the tarball includes Cargo.lock).  No cargoHash to maintain.
+  cargoLock.lockFile = "${finalAttrs.src}/Cargo.lock";
 
   nativeBuildInputs = [
     pkg-config
@@ -41,7 +52,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     package = finalAttrs.finalPackage;
     command = "voxput --version";
   };
-
 
   meta = {
     description = "Voice-to-text dictation tool powered by Groq Whisper";
