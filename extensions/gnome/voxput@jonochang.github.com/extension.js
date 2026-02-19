@@ -5,7 +5,6 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
-import Clutter from 'gi://Clutter';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
@@ -13,10 +12,10 @@ import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 
 // ---------------------------------------------------------------------------
 // D-Bus interface XML for the voxputd service
+// GetStatus returns 3 separate string out-args (zbus Rust tuple → 3 × "s")
 // ---------------------------------------------------------------------------
 
 const DBUS_IFACE = `
@@ -26,7 +25,9 @@ const DBUS_IFACE = `
     <method name="StopRecording"/>
     <method name="Toggle"/>
     <method name="GetStatus">
-      <arg type="(sss)" direction="out" name="result"/>
+      <arg type="s" direction="out" name="state"/>
+      <arg type="s" direction="out" name="transcript"/>
+      <arg type="s" direction="out" name="error"/>
     </method>
     <signal name="StateChanged">
       <arg type="s" name="state"/>
@@ -35,7 +36,7 @@ const DBUS_IFACE = `
   </interface>
 </node>`;
 
-const DBUS_BUS_NAME = 'com.github.jonochang.Voxput';
+const DBUS_BUS_NAME    = 'com.github.jonochang.Voxput';
 const DBUS_OBJECT_PATH = '/com/github/jonochang/Voxput';
 
 // ---------------------------------------------------------------------------
@@ -49,7 +50,6 @@ const STATE_ICONS = {
     error:         'dialog-error-symbolic',
 };
 
-// CSS style class applied to the icon for each state
 const STATE_STYLE_CLASSES = {
     idle:          'voxput-idle',
     recording:     'voxput-recording',
@@ -66,6 +66,9 @@ export default class VoxputExtension extends Extension {
         this._settings = this.getSettings();
         this._state = 'idle';
         this._lastTranscript = '';
+        this._proxy = null;
+        this._signalId = null;
+        this._nameWatchId = null;
 
         this._buildIndicator();
         this._connectDbus();
@@ -92,14 +95,11 @@ export default class VoxputExtension extends Extension {
         });
         this._indicator.add_child(this._icon);
 
-        // ---- popup menu ----
         const menu = this._indicator.menu;
 
-        // Status row
         this._statusItem = new PopupMenu.PopupMenuItem(_('Idle'), { reactive: false });
         menu.addMenuItem(this._statusItem);
 
-        // Last transcript row (hidden when empty)
         this._transcriptItem = new PopupMenu.PopupMenuItem('', { reactive: false });
         this._transcriptItem.label.clutter_text.set_line_wrap(true);
         this._transcriptItem.visible = false;
@@ -107,12 +107,10 @@ export default class VoxputExtension extends Extension {
 
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Toggle action
         this._toggleItem = new PopupMenu.PopupMenuItem(_('Start Recording'));
         this._toggleItem.connect('activate', () => this._toggle());
         menu.addMenuItem(this._toggleItem);
 
-        // Settings shortcut
         const prefsItem = new PopupMenu.PopupMenuItem(_('Settings'));
         prefsItem.connect('activate', () => this.openPreferences());
         menu.addMenuItem(prefsItem);
@@ -130,17 +128,14 @@ export default class VoxputExtension extends Extension {
         if (transcript)
             this._lastTranscript = transcript;
 
-        const iconName = STATE_ICONS[state] ?? STATE_ICONS['idle'];
+        const iconName   = STATE_ICONS[state]        ?? STATE_ICONS['idle'];
         const styleClass = STATE_STYLE_CLASSES[state] ?? STATE_STYLE_CLASSES['idle'];
 
-        // Update icon
         this._icon.icon_name = iconName;
-        // Swap state style classes
         for (const cls of Object.values(STATE_STYLE_CLASSES))
             this._icon.remove_style_class_name(cls);
         this._icon.add_style_class_name(styleClass);
 
-        // Update status label
         const labels = {
             idle:         _('Idle'),
             recording:    _('Recording…'),
@@ -149,7 +144,6 @@ export default class VoxputExtension extends Extension {
         };
         this._statusItem.label.text = labels[state] ?? state;
 
-        // Update transcript row
         if (state === 'idle' && this._lastTranscript) {
             const short = this._lastTranscript.length > 80
                 ? this._lastTranscript.slice(0, 80) + '…'
@@ -160,7 +154,6 @@ export default class VoxputExtension extends Extension {
             this._transcriptItem.visible = false;
         }
 
-        // Toggle action label
         this._toggleItem.label.text =
             state === 'recording' ? _('Stop Recording') : _('Start Recording');
     }
@@ -176,11 +169,10 @@ export default class VoxputExtension extends Extension {
                 Gio.DBus.session,
                 DBUS_BUS_NAME,
                 DBUS_OBJECT_PATH,
-                null,   // cancellable
+                null,
                 Gio.DBusProxyFlags.NONE,
             );
 
-            // Listen for StateChanged signals
             this._signalId = this._proxy.connectSignal(
                 'StateChanged',
                 (_proxy, _sender, [state, transcript]) => {
@@ -188,18 +180,16 @@ export default class VoxputExtension extends Extension {
                 },
             );
 
-            // Query initial status
             this._refreshStatus();
 
-            // Watch for daemon appearing / disappearing
+            // Detect daemon appearing / disappearing
             this._nameWatchId = Gio.DBus.session.watch_name(
                 DBUS_BUS_NAME,
                 Gio.BusNameWatcherFlags.NONE,
-                () => this._refreshStatus(),        // appeared
-                () => this._updateIndicator('idle', ''), // vanished
+                () => this._refreshStatus(),
+                () => this._updateIndicator('idle', ''),
             );
 
-            // Auto-start the daemon if configured
             if (this._settings.get_boolean('daemon-auto-start'))
                 this._ensureDaemonRunning();
 
@@ -223,29 +213,25 @@ export default class VoxputExtension extends Extension {
     _onStateChanged(state, transcript) {
         this._updateIndicator(state, transcript);
 
-        // Show notification when transcription completes
         if (state === 'idle' && transcript &&
             this._settings.get_boolean('show-transcript-notification')) {
-            this._notify(_('Transcription complete'), transcript);
+            Main.notify(_('Voxput'), transcript);
         }
         if (state === 'error') {
-            this._notify(_('Voxput error'), _('Recording or transcription failed.'));
+            Main.notifyError(_('Voxput'), _('Recording or transcription failed.'));
         }
     }
 
     _refreshStatus() {
         if (!this._proxy)
             return;
-        try {
-            // GetStatus returns (sss) struct: [state, transcript, error]
-            const result = this._proxy.GetStatusSync();
-            if (result && result[0]) {
-                const [state, transcript, _error] = result[0];
-                this._updateIndicator(state, transcript);
-            }
-        } catch (_e) {
-            // daemon not running yet — stay idle
-        }
+        // GetStatus returns 3 separate string args: [state, transcript, error]
+        this._proxy.GetStatusRemote((result, error) => {
+            if (error || !result)
+                return;
+            const [state, transcript, _err] = result;
+            this._updateIndicator(state, transcript);
+        });
     }
 
     // -----------------------------------------------------------------------
@@ -254,21 +240,15 @@ export default class VoxputExtension extends Extension {
 
     _toggle() {
         if (!this._proxy) return;
-        try {
-            this._proxy.ToggleRemote((_result, error) => {
-                if (error)
-                    logError(error, 'Voxput: toggle failed');
-            });
-        } catch (e) {
-            logError(e, 'Voxput: toggle error');
-        }
+        this._proxy.ToggleRemote((_result, error) => {
+            if (error)
+                logError(error, 'Voxput: toggle failed');
+        });
     }
 
     _ensureDaemonRunning() {
-        // Trigger D-Bus activation; voxputd will start if it is not running.
-        try {
-            this._proxy.GetStatusRemote((_r, _e) => {});
-        } catch (_e) {}
+        // Triggers D-Bus activation; voxputd starts if not already running.
+        this._proxy?.GetStatusRemote(() => {});
     }
 
     // -----------------------------------------------------------------------
@@ -287,30 +267,5 @@ export default class VoxputExtension extends Extension {
 
     _unbindShortcut() {
         Main.wm.removeKeybinding('toggle-recording');
-    }
-
-    // -----------------------------------------------------------------------
-    // Notifications
-    // -----------------------------------------------------------------------
-
-    _notify(title, body) {
-        // Reuse a single notification source for the extension.
-        if (!this._notifSource) {
-            this._notifSource = new MessageTray.Source({
-                title: 'Voxput',
-                iconName: 'audio-input-microphone-symbolic',
-            });
-            Main.messageTray.add(this._notifSource);
-            this._notifSource.connect('destroy', () => {
-                this._notifSource = null;
-            });
-        }
-
-        const notification = new MessageTray.Notification({
-            source: this._notifSource,
-            title,
-            body,
-        });
-        this._notifSource.addNotification(notification);
     }
 }

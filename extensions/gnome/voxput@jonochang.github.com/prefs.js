@@ -2,6 +2,7 @@
 // GNOME Shell 45+ (ESM module)
 
 import Adw from 'gi://Adw';
+import Gdk from 'gi://Gdk';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 

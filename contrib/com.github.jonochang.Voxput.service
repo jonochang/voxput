@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=com.github.jonochang.Voxput
-Exec=/usr/local/bin/voxputd
+Exec=/bin/sh -c 'exec "${HOME}/.local/bin/voxputd"'
 SystemdService=voxputd.service
