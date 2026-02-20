@@ -1,3 +1,9 @@
+# Code Review (Historical)
+
+> **Note:** This review was written during the v0.1 MVP phase. Some findings
+> have been addressed in subsequent releases; others may still be relevant.
+> Preserved as a historical reference.
+
 Review scope: `docs/specs/*`, `implementation.md`, `README.md`, and current `crates/` code.
 
 **Summary**

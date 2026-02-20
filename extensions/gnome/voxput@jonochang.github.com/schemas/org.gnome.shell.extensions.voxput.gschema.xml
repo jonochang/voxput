@@ -24,7 +24,7 @@
     <key name="auto-paste" type="b">
       <default>false</default>
       <summary>Auto-paste transcript</summary>
-      <description>Automatically type the transcript into the focused window after transcription completes. Requires wtype to be installed.</description>
+      <description>Automatically type the transcript into the focused window after transcription completes. Requires ydotool and the ydotool group.</description>
     </key>
 
     <key name="push-to-talk" type="b">

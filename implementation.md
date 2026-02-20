@@ -1,4 +1,9 @@
-# Voxput — Implementation Plan
+# Voxput — Implementation Plan (Historical)
+
+> **Note:** This document was written during initial development (v0.1 MVP)
+> and is preserved as a historical reference. The MVP phases (1–7) have been
+> completed. The post-MVP roadmap (phases 8–13) was partially followed — see
+> inline annotations for what changed during implementation.
 
 ## 1. MVP Definition
 
@@ -699,6 +704,12 @@ tests/
 
 ### Phase 8 — Daemon (`voxputd`) with IPC
 
+> **What actually shipped (v0.2):** D-Bus session service using `zbus`
+> instead of gRPC. The D-Bus interface (`com.github.jonochang.Voxput1`)
+> exposes `StartRecording`, `StopRecording`, `Toggle`, `GetStatus` methods
+> and a `StateChanged` signal. gRPC was not needed — D-Bus integrates
+> natively with GNOME Shell and systemd.
+
 New crate `crates/voxputd/` with `tonic` + `prost` gRPC server over a Unix domain socket (`$XDG_RUNTIME_DIR/voxput.sock`).
 
 **Proto definition (`proto/voxput.proto`):**
@@ -717,9 +728,19 @@ Daemon ships as a systemd user service: `contrib/voxputd.service`.
 
 ### Phase 9 — Push-to-Talk Hotkey
 
+> **What actually shipped (v0.3):** The GNOME extension communicates with
+> `voxputd` over D-Bus directly (no bridge needed). Key-release detection
+> uses `Main.pushModal()` to grab keyboard input — `global.stage`
+> key-release events are not delivered on Wayland when an app has focus.
+
 GNOME Shell extension (`extensions/gnome/`) registers a keyboard shortcut via GNOME's Keybindings API. On key-down → call daemon `StartRecording`; on key-up → `StopRecording`. The extension communicates with the daemon via a small D-Bus bridge or helper binary that forwards to gRPC.
 
 ### Phase 10 — Full GNOME Shell Extension
+
+> **What actually shipped (v0.3):** All items below are implemented. The
+> extension also supports toggle mode (press-to-start, press-to-stop) as an
+> alternative to push-to-talk mode, switchable via GSettings. A Nix flake
+> with Home Manager module manages the full installation.
 
 - Top-bar indicator with state icons (idle / recording / transcribing / error)
 - Popup menu: status, last transcript preview, settings shortcut, toggle
@@ -727,6 +748,11 @@ GNOME Shell extension (`extensions/gnome/`) registers a keyboard shortcut via GN
 - D-Bus adapter bridging GNOME Shell ↔ daemon gRPC
 
 ### Phase 11 — Type-at-Cursor Output
+
+> **What actually shipped (v0.3):** Auto-paste via `ydotool`, which injects
+> keystrokes at the kernel uinput level. `wtype` does not work on GNOME
+> (requires wlroots). Clutter's virtual keyboard API crashes gnome-shell.
+> Clipboard is always set as fallback regardless of ydotool availability.
 
 New `TypeAtCursorSink` implementing `OutputSink`:
 - Linux Wayland: `wtype` subprocess, or `xdg-desktop-portal` `RemoteDesktop` portal

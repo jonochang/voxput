@@ -199,9 +199,10 @@ systemctl --user set-environment RUST_LOG=debug
 systemctl --user restart voxputd
 ```
 
-### Push-to-talk with a hotkey tool
+### Push-to-talk with a hotkey tool (non-GNOME)
 
-Any tool that can run a shell command on a key event works:
+If you are not using the GNOME Shell extension, any tool that can run a
+shell command on a key event works:
 
 ```bash
 # sxhkd (~/.config/sxhkd/sxhkdrc)
@@ -454,7 +455,10 @@ Log out and back in after applying for the group membership to take effect.
 
 ## Roadmap
 
-- **v0.1:** CLI one-shot mode — `voxput record`
-- **v0.2 (done):** Background daemon (`voxputd`) with D-Bus IPC + push-to-talk
-- **v0.3 (done):** GNOME Shell extension with top-bar indicator and shortcut
-- **v0.4:** Type-at-cursor output, additional providers (OpenAI, local whisper.cpp)
+- **v0.1 (done):** CLI one-shot mode — `voxput record`
+- **v0.2 (done):** Background daemon (`voxputd`) with D-Bus IPC
+- **v0.3 (done):** GNOME Shell extension — top-bar indicator, configurable
+  shortcut, push-to-talk and toggle recording modes, auto-paste via ydotool,
+  NixOS/Home Manager module
+- **v0.4:** Additional transcription providers (OpenAI, local whisper.cpp),
+  language selection in the extension UI

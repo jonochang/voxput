@@ -82,7 +82,7 @@ export default class VoxputPreferences extends ExtensionPreferences {
 
         const autoPasteRow = new Adw.SwitchRow({
             title: _('Auto-paste transcript'),
-            subtitle: _('Type the transcript into the focused window automatically. Requires wtype.'),
+            subtitle: _('Type the transcript into the focused window automatically. Requires ydotool.'),
         });
         settings.bind(
             'auto-paste',

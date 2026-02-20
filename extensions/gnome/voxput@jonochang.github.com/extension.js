@@ -237,7 +237,7 @@ export default class VoxputExtension extends Extension {
         // programmatic bulk injection (it routes through gnome-shell's own
         // event handling and can destabilise the shell).
         //
-        // Requires services.ydotool.enable = true in your NixOS configuration.
+        // Requires programs.ydotool.enable = true in your NixOS configuration.
         const ydotool = GLib.find_program_in_path('ydotool');
         if (!ydotool)
             return; // clipboard fallback already set above
