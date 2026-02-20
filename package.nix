@@ -28,7 +28,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
         owner = "jonochang";
         repo = "voxput";
         tag = "v${finalAttrs.version}";
-        hash = lib.fakeHash;
+        hash = "sha256-8ZTWHzpz679TpHHtq1ivyDRYwJGvw4QcMCPXa7R5DHY=";
       };
 
   # Reads Cargo.lock from the source — works for both self and fetchFromGitHub
