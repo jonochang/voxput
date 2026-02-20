@@ -1,0 +1,11 @@
+[book]
+authors = ["Voxput Contributors"]
+language = "en"
+src = "src"
+title = "Voxput Documentation"
+description = "Voice-to-text dictation for Linux, powered by Groq Whisper"
+
+[output.html]
+git-repository-url = "https://github.com/jonochang/voxput"
+edit-url-template = "https://github.com/jonochang/voxput/edit/master/docs/{path}"
+site-url = "/voxput/"

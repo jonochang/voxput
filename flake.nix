@@ -63,6 +63,9 @@
             # Test fixture generation (espeak-ng voice WAV via ffmpeg)
             pkgs.espeak-ng
             pkgs.ffmpeg
+
+            # Documentation
+            pkgs.mdbook
           ];
         };
       }
