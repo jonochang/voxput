@@ -270,12 +270,18 @@ Or toggle it on in the **Extensions** app.
 
 ### Usage
 
-- Press **Super+M** (default) to start recording. The top-bar icon turns red.
-- Press **Super+M** again to stop. The icon turns yellow while transcribing.
-- When done, the transcript is **copied to the clipboard automatically** and a
-  notification appears. Switch to your target window and press `Ctrl+V`.
-- Click the indicator to open the popup menu, which shows the last transcript
-  and a manual Start/Stop Recording toggle.
+The default mode is **push-to-talk**: hold **Super+M** to record, release to
+stop. The transcript is copied to the clipboard automatically.
+
+- **Hold Super+M** → recording starts (icon turns red)
+- **Release** → transcription runs (icon turns yellow), then transcript is
+  copied to clipboard
+- **Switch to target window** and press `Ctrl+V` to paste
+- Click the top-bar icon to open the popup menu (shows last transcript, manual
+  Start/Stop toggle)
+
+In **toggle mode** (switchable in Settings): press once to start, press again
+to stop.
 
 ### Top-bar icon states
 
@@ -295,9 +301,14 @@ gnome-extensions prefs voxput@jonochang.github.com
 ```
 
 Options:
-- **Toggle Recording shortcut** — change the keybinding (click "Change" and
-  press the desired combination)
+- **Push-to-talk** — hold shortcut to record, release to stop (default on);
+  switch off for toggle mode (press once to start, press again to stop)
+- **Shortcut** — change the keybinding (click "Change" and press the desired
+  combination)
 - **Show transcript notification** — toggle the GNOME notification on completion
+- **Auto-paste transcript** — type the transcript into the focused window
+  automatically (requires `programs.ydotool.enable = true` and the user in the
+  `ydotool` group in your NixOS system config)
 - **Auto-start voxputd** — start the daemon automatically when the extension
   enables (on by default; requires the D-Bus activation file to be installed)
 
@@ -354,6 +365,8 @@ services.voxput = {
     enable           = true;
     shortcut         = [ "<Super>v" ];   # default: Super+M
     showNotification = true;             # default: true
+    pushToTalk       = true;             # default: true (false = toggle mode)
+    autoPaste        = false;            # default: false; requires ydotool (see below)
   };
 };
 
@@ -424,6 +437,20 @@ services.voxput.apiKeyFile = config.age.secrets.groq-api-key.path;
 | `gnome.package` | package | `pkgs.voxputGnomeExtension` | Extension package |
 | `gnome.shortcut` | \[str\] | `["<Super>m"]` | Toggle-recording keybinding |
 | `gnome.showNotification` | bool | `true` | Notify on transcript completion |
+| `gnome.pushToTalk` | bool | `true` | Hold to record / release to stop; `false` = toggle mode |
+| `gnome.autoPaste` | bool | `false` | Auto-type transcript into focused window (requires ydotool) |
+
+#### Auto-paste setup (NixOS)
+
+`autoPaste` uses `ydotool` to inject keystrokes at the kernel level. Two
+things are required in your **NixOS system** config (not Home Manager):
+
+```nix
+programs.ydotool.enable = true;
+users.users.<youruser>.extraGroups = [ "ydotool" ];
+```
+
+Log out and back in after applying for the group membership to take effect.
 
 ## Roadmap
 
