@@ -301,8 +301,10 @@ export default class VoxputExtension extends Extension {
             return;
         }
 
-        // Ignore while transcribing or in error state.
-        if (this._state !== 'idle') return;
+        // Don't start a new recording while transcription is in progress.
+        // Allow starting from 'idle' or 'error' (error just means the last
+        // attempt failed; the daemon is ready for a new recording).
+        if (this._state === 'transcribing') return;
 
         const startTime = Date.now();
 
