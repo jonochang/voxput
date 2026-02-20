@@ -2,7 +2,7 @@
 
 stdenvNoCC.mkDerivation {
   pname = "gnome-shell-extension-voxput";
-  version = "0.3.0";
+  version = "0.3.2";
 
   # The '@' in the directory name is illegal in Nix store paths.
   # builtins.path lets us supply a clean 'name' while still reading the real dir.
@@ -24,7 +24,11 @@ stdenvNoCC.mkDerivation {
     # Copy all extension files
     cp -r . "$extdir/"
 
-    # Install schemas to the standard NixOS location so GNOME can find them
+    # Compile schemas into the extension's own schemas/ dir so that
+    # GNOME Shell's Extension.getSettings() can find gschemas.compiled.
+    glib-compile-schemas "$extdir/schemas"
+
+    # Also install to the standard GLib schemas location.
     cp schemas/*.xml "$schemadir/"
     glib-compile-schemas "$schemadir"
 
