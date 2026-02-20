@@ -2,7 +2,6 @@
 // Requires: voxputd running on D-Bus as com.github.jonochang.Voxput
 // Compatible with GNOME Shell 45+
 
-import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
@@ -73,15 +72,6 @@ export default class VoxputExtension extends Extension {
         this._keyReleaseId = null;
         this._keyReleaseTimeout = null;
 
-        // Virtual keyboard device for auto-paste (Mutter-native, no external tools)
-        try {
-            const seat = Clutter.get_default_backend().get_default_seat();
-            this._vkbd = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
-        } catch (e) {
-            this._vkbd = null;
-            logError(e, 'Voxput: failed to create virtual keyboard device');
-        }
-
         this._buildIndicator();
         this._connectDbus();
         this._bindShortcut();
@@ -92,7 +82,6 @@ export default class VoxputExtension extends Extension {
         this._cleanupKeyRelease();
         this._disconnectDbus();
         this._destroyIndicator();
-        this._vkbd = null;
         this._settings = null;
     }
 
@@ -239,39 +228,37 @@ export default class VoxputExtension extends Extension {
     }
 
     _autoPaste(text) {
-        // Type the transcript using Mutter's virtual keyboard API.
-        // This works natively on GNOME Wayland without any external tools.
+        // Always copy to clipboard so the user can paste manually if needed.
+        St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, text);
 
-        // Safety: never send keystrokes when the screen is locked — the
-        // virtual keyboard events stay within gnome-shell and would land in
-        // the lock-screen password field.
-        if (Main.screenShield?.locked) return;
+        // ydotool injects keystrokes at the kernel uinput level, bypassing the
+        // Wayland compositor entirely.  This is the correct approach for GNOME
+        // Wayland — Clutter's internal virtual keyboard API is not safe for
+        // programmatic bulk injection (it routes through gnome-shell's own
+        // event handling and can destabilise the shell).
+        //
+        // Requires services.ydotool.enable = true in your NixOS configuration.
+        const ydotool = GLib.find_program_in_path('ydotool');
+        if (!ydotool)
+            return; // clipboard fallback already set above
 
-        if (!this._vkbd) {
-            Main.notifyError(_('Voxput'), _('Auto-paste unavailable: virtual keyboard not initialised.'));
-            return;
-        }
-
-        // Small delay so Mutter can finish processing the stop-recording
-        // keybinding before we inject new key events.
+        // Brief delay so the focused app regains keyboard focus after the
+        // stop-recording keybinding is processed.
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-            // Re-check in case the screen locked during the delay.
-            if (Main.screenShield?.locked) return GLib.SOURCE_REMOVE;
-
             try {
-                let t = GLib.get_monotonic_time();
-                for (const char of text) {
-                    const cp = char.codePointAt(0);
-                    // ASCII printable 0x20–0x7e use their codepoint directly as keyval.
-                    // Everything else uses the X11 Unicode keysym (0x01000000 | codepoint).
-                    const keyval = (cp >= 0x20 && cp <= 0x7e) ? cp : (0x01000000 | cp);
-                    this._vkbd.notify_keyval(t,     keyval, Clutter.KeyState.PRESSED);
-                    this._vkbd.notify_keyval(t + 1, keyval, Clutter.KeyState.RELEASED);
-                    t += 2;
-                }
+                const proc = Gio.Subprocess.new(
+                    [ydotool, 'type', '--key-delay', '0', '--', text],
+                    Gio.SubprocessFlags.NONE,
+                );
+                proc.wait_async(null, (_proc, result) => {
+                    try {
+                        _proc.wait_finish(result);
+                    } catch (e) {
+                        logError(e, 'Voxput: ydotool failed');
+                    }
+                });
             } catch (e) {
                 logError(e, 'Voxput: auto-paste failed');
-                Main.notifyError(_('Voxput'), _('Auto-paste failed.'));
             }
             return GLib.SOURCE_REMOVE;
         });

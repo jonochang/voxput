@@ -42,7 +42,7 @@ let
   cfg = config.services.voxput;
   inherit (lib)
     mkEnableOption mkOption mkIf mkMerge types literalExpression
-    optionalAttrs optionalString;
+    optionalAttrs optionalString optionals;
 
   # Build the config.toml text from module options.
   # Only sections/keys that are set are emitted so the file stays minimal.
@@ -167,8 +167,18 @@ in
         default = false;
         description = ''
           Automatically type the transcript into the focused window after
-          transcription completes.  Uses GNOME Shell's native virtual keyboard
-          API — no external tools required.
+          transcription completes.  Uses `ydotool`, which injects keystrokes
+          at the kernel uinput level (bypassing the Wayland compositor) and is
+          the reliable approach for GNOME Wayland.
+
+          You must also enable the ydotool daemon in your **NixOS system**
+          configuration (not Home Manager):
+
+          ```nix
+          services.ydotool.enable = true;
+          ```
+
+          `pkgs.ydotool` is added to your user packages automatically.
         '';
       };
     };
@@ -233,7 +243,8 @@ in
       #   ];
       #
       # (Home Manager 23.11+; this merges correctly with other extensions.)
-      home.packages = [ cfg.gnome.package ];
+      home.packages = [ cfg.gnome.package ]
+        ++ optionals cfg.gnome.autoPaste [ pkgs.ydotool ];
 
       # Extension-specific settings (safe to set from a module — these are
       # scoped to the extension's own GSettings schema path)
