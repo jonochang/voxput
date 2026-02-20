@@ -70,7 +70,7 @@ export default class VoxputExtension extends Extension {
         this._signalId = null;
         this._nameWatchId = null;
         this._keyReleaseId = null;
-        this._keyReleaseTimeout = null;
+        this._grabActor = null;
 
         this._buildIndicator();
         this._connectDbus();
@@ -313,30 +313,46 @@ export default class VoxputExtension extends Extension {
                 logError(error, 'Voxput: start recording failed');
         });
 
-        // Attempt push-to-talk via key-release.  On Wayland the event may not
-        // arrive reliably — pressing the shortcut again falls back to the
-        // state-based stop above.
-        this._keyReleaseId = global.stage.connect('key-release-event', () => {
-            // Debounce: ignore the instant release of the triggering keys.
-            if (Date.now() - startTime < 80)
+        // On Wayland, key-release events are sent to the focused application
+        // surface, not to gnome-shell's Clutter stage.  Use Main.pushModal to
+        // temporarily grab keyboard input to the shell so the release is
+        // delivered reliably.  The grab is held only while recording.
+        this._grabActor = new St.Widget({ reactive: true, width: 0, height: 0 });
+        Main.uiGroup.add_child(this._grabActor);
+
+        if (Main.pushModal(this._grabActor)) {
+            this._keyReleaseId = this._grabActor.connect('key-release-event', () => {
+                // Debounce: ignore the instant release of the triggering keys.
+                if (Date.now() - startTime < 80)
+                    return false;
+                this._cleanupKeyRelease();
+                this._proxy?.StopRecordingRemote((_result, error) => {
+                    if (error)
+                        logError(error, 'Voxput: stop recording failed');
+                });
                 return false;
-            this._cleanupKeyRelease();
-            this._proxy?.StopRecordingRemote((_result, error) => {
-                if (error)
-                    logError(error, 'Voxput: stop recording failed');
             });
-            return false;
-        });
+        } else {
+            // pushModal failed — recording proceeds but auto-stop on release
+            // won't work; pressing the shortcut again will stop via the
+            // state-based branch above.
+            Main.uiGroup.remove_child(this._grabActor);
+            this._grabActor.destroy();
+            this._grabActor = null;
+            logError(new Error('pushModal failed'), 'Voxput: push-to-talk key detection unavailable');
+        }
     }
 
     _cleanupKeyRelease() {
-        if (this._keyReleaseTimeout) {
-            GLib.source_remove(this._keyReleaseTimeout);
-            this._keyReleaseTimeout = null;
-        }
-        if (this._keyReleaseId) {
-            global.stage.disconnect(this._keyReleaseId);
+        if (this._keyReleaseId && this._grabActor) {
+            this._grabActor.disconnect(this._keyReleaseId);
             this._keyReleaseId = null;
+        }
+        if (this._grabActor) {
+            try { Main.popModal(this._grabActor); } catch (_e) {}
+            Main.uiGroup.remove_child(this._grabActor);
+            this._grabActor.destroy();
+            this._grabActor = null;
         }
     }
 
@@ -355,7 +371,12 @@ export default class VoxputExtension extends Extension {
             this._settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            () => this._startPushToTalk(),
+            () => {
+                if (this._settings.get_boolean('push-to-talk'))
+                    this._startPushToTalk();
+                else
+                    this._toggle();
+            },
         );
     }
 

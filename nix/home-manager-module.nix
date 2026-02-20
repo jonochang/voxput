@@ -162,6 +162,17 @@ in
         description = "Show a GNOME notification when transcription completes.";
       };
 
+      pushToTalk = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Recording mode for the keyboard shortcut.  When `true` (default),
+          hold the shortcut to record and release any key to stop
+          (push-to-talk).  When `false`, press once to start recording and
+          press again to stop (toggle mode).
+        '';
+      };
+
       autoPaste = mkOption {
         type = types.bool;
         default = false;
@@ -252,6 +263,7 @@ in
         toggle-recording = cfg.gnome.shortcut;
         show-transcript-notification = cfg.gnome.showNotification;
         daemon-auto-start = true;
+        push-to-talk = cfg.gnome.pushToTalk;
         auto-paste = cfg.gnome.autoPaste;
       };
     })

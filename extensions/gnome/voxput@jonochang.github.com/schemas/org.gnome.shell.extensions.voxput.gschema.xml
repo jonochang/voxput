@@ -27,5 +27,11 @@
       <description>Automatically type the transcript into the focused window after transcription completes. Requires wtype to be installed.</description>
     </key>
 
+    <key name="push-to-talk" type="b">
+      <default>true</default>
+      <summary>Push-to-talk mode</summary>
+      <description>When true, hold the shortcut to record and release any key to stop. When false, press once to start recording and press again to stop (toggle mode).</description>
+    </key>
+
   </schema>
 </schemalist>

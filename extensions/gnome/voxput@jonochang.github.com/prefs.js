@@ -22,12 +22,18 @@ export default class VoxputPreferences extends ExtensionPreferences {
         // ---- Shortcut group ----
         const shortcutGroup = new Adw.PreferencesGroup({
             title: _('Keyboard Shortcut'),
-            description: _('Hold the shortcut to record; release any key to stop and transcribe.'),
         });
         page.add(shortcutGroup);
 
+        const modeRow = new Adw.SwitchRow({
+            title: _('Push-to-talk'),
+            subtitle: _('Hold shortcut to record, release to stop. Off = press once to start, press again to stop.'),
+        });
+        settings.bind('push-to-talk', modeRow, 'active', Gio.SettingsBindFlags.DEFAULT);
+        shortcutGroup.add(modeRow);
+
         const shortcutRow = new Adw.ActionRow({
-            title: _('Push to Talk'),
+            title: _('Shortcut'),
             subtitle: _('Click to change'),
         });
         shortcutGroup.add(shortcutRow);
