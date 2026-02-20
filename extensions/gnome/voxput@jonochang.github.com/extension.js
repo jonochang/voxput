@@ -241,25 +241,40 @@ export default class VoxputExtension extends Extension {
     _autoPaste(text) {
         // Type the transcript using Mutter's virtual keyboard API.
         // This works natively on GNOME Wayland without any external tools.
+
+        // Safety: never send keystrokes when the screen is locked — the
+        // virtual keyboard events stay within gnome-shell and would land in
+        // the lock-screen password field.
+        if (Main.screenShield?.locked) return;
+
         if (!this._vkbd) {
             Main.notifyError(_('Voxput'), _('Auto-paste unavailable: virtual keyboard not initialised.'));
             return;
         }
-        try {
-            let t = GLib.get_monotonic_time();
-            for (const char of text) {
-                const cp = char.codePointAt(0);
-                // ASCII printable 0x20–0x7e use their codepoint directly as keyval.
-                // Everything else uses the X11 Unicode keysym (0x01000000 | codepoint).
-                const keyval = (cp >= 0x20 && cp <= 0x7e) ? cp : (0x01000000 | cp);
-                this._vkbd.notify_keyval(t,     keyval, Clutter.KeyState.PRESSED);
-                this._vkbd.notify_keyval(t + 1, keyval, Clutter.KeyState.RELEASED);
-                t += 2;
+
+        // Small delay so Mutter can finish processing the stop-recording
+        // keybinding before we inject new key events.
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+            // Re-check in case the screen locked during the delay.
+            if (Main.screenShield?.locked) return GLib.SOURCE_REMOVE;
+
+            try {
+                let t = GLib.get_monotonic_time();
+                for (const char of text) {
+                    const cp = char.codePointAt(0);
+                    // ASCII printable 0x20–0x7e use their codepoint directly as keyval.
+                    // Everything else uses the X11 Unicode keysym (0x01000000 | codepoint).
+                    const keyval = (cp >= 0x20 && cp <= 0x7e) ? cp : (0x01000000 | cp);
+                    this._vkbd.notify_keyval(t,     keyval, Clutter.KeyState.PRESSED);
+                    this._vkbd.notify_keyval(t + 1, keyval, Clutter.KeyState.RELEASED);
+                    t += 2;
+                }
+            } catch (e) {
+                logError(e, 'Voxput: auto-paste failed');
+                Main.notifyError(_('Voxput'), _('Auto-paste failed.'));
             }
-        } catch (e) {
-            logError(e, 'Voxput: auto-paste failed');
-            Main.notifyError(_('Voxput'), _('Auto-paste failed.'));
-        }
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     _refreshStatus() {
