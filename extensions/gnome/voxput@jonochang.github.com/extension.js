@@ -2,6 +2,7 @@
 // Requires: voxputd running on D-Bus as com.github.jonochang.Voxput
 // Compatible with GNOME Shell 45+
 
+import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import St from 'gi://St';
@@ -72,6 +73,15 @@ export default class VoxputExtension extends Extension {
         this._keyReleaseId = null;
         this._keyReleaseTimeout = null;
 
+        // Virtual keyboard device for auto-paste (Mutter-native, no external tools)
+        try {
+            const seat = Clutter.get_default_backend().get_default_seat();
+            this._vkbd = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
+        } catch (e) {
+            this._vkbd = null;
+            logError(e, 'Voxput: failed to create virtual keyboard device');
+        }
+
         this._buildIndicator();
         this._connectDbus();
         this._bindShortcut();
@@ -82,6 +92,7 @@ export default class VoxputExtension extends Extension {
         this._cleanupKeyRelease();
         this._disconnectDbus();
         this._destroyIndicator();
+        this._vkbd = null;
         this._settings = null;
     }
 
@@ -228,23 +239,26 @@ export default class VoxputExtension extends Extension {
     }
 
     _autoPaste(text) {
-        // Use wtype to type the transcript into whatever window has focus.
-        // wtype is a Wayland-native tool; install it via your package manager.
+        // Type the transcript using Mutter's virtual keyboard API.
+        // This works natively on GNOME Wayland without any external tools.
+        if (!this._vkbd) {
+            Main.notifyError(_('Voxput'), _('Auto-paste unavailable: virtual keyboard not initialised.'));
+            return;
+        }
         try {
-            const proc = Gio.Subprocess.new(
-                ['wtype', '--', text],
-                Gio.SubprocessFlags.NONE,
-            );
-            proc.wait_async(null, (_proc, result) => {
-                try {
-                    _proc.wait_finish(result);
-                } catch (e) {
-                    logError(e, 'Voxput: wtype failed');
-                }
-            });
+            let t = GLib.get_monotonic_time();
+            for (const char of text) {
+                const cp = char.codePointAt(0);
+                // ASCII printable 0x20–0x7e use their codepoint directly as keyval.
+                // Everything else uses the X11 Unicode keysym (0x01000000 | codepoint).
+                const keyval = (cp >= 0x20 && cp <= 0x7e) ? cp : (0x01000000 | cp);
+                this._vkbd.notify_keyval(t,     keyval, Clutter.KeyState.PRESSED);
+                this._vkbd.notify_keyval(t + 1, keyval, Clutter.KeyState.RELEASED);
+                t += 2;
+            }
         } catch (e) {
-            logError(e, 'Voxput: auto-paste failed — is wtype installed?');
-            Main.notifyError(_('Voxput'), _('Auto-paste failed: wtype not found.'));
+            logError(e, 'Voxput: auto-paste failed');
+            Main.notifyError(_('Voxput'), _('Auto-paste failed.'));
         }
     }
 

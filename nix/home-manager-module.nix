@@ -42,7 +42,7 @@ let
   cfg = config.services.voxput;
   inherit (lib)
     mkEnableOption mkOption mkIf mkMerge types literalExpression
-    optionalAttrs optionalString optionals;
+    optionalAttrs optionalString;
 
   # Build the config.toml text from module options.
   # Only sections/keys that are set are emitted so the file stays minimal.
@@ -167,8 +167,8 @@ in
         default = false;
         description = ''
           Automatically type the transcript into the focused window after
-          transcription completes.  Requires `wtype` (added to packages
-          automatically when enabled).
+          transcription completes.  Uses GNOME Shell's native virtual keyboard
+          API — no external tools required.
         '';
       };
     };
@@ -233,8 +233,7 @@ in
       #   ];
       #
       # (Home Manager 23.11+; this merges correctly with other extensions.)
-      home.packages = [ cfg.gnome.package ]
-        ++ optionals cfg.gnome.autoPaste [ pkgs.wtype ];
+      home.packages = [ cfg.gnome.package ];
 
       # Extension-specific settings (safe to set from a module — these are
       # scoped to the extension's own GSettings schema path)
