@@ -216,12 +216,35 @@ export default class VoxputExtension extends Extension {
     _onStateChanged(state, transcript) {
         this._updateIndicator(state, transcript);
 
-        if (state === 'idle' && transcript &&
-            this._settings.get_boolean('show-transcript-notification')) {
-            Main.notify(_('Voxput'), transcript);
+        if (state === 'idle' && transcript) {
+            if (this._settings.get_boolean('show-transcript-notification'))
+                Main.notify(_('Voxput'), transcript);
+            if (this._settings.get_boolean('auto-paste'))
+                this._autoPaste(transcript);
         }
         if (state === 'error') {
             Main.notifyError(_('Voxput'), _('Recording or transcription failed.'));
+        }
+    }
+
+    _autoPaste(text) {
+        // Use wtype to type the transcript into whatever window has focus.
+        // wtype is a Wayland-native tool; install it via your package manager.
+        try {
+            const proc = Gio.Subprocess.new(
+                ['wtype', '--', text],
+                Gio.SubprocessFlags.NONE,
+            );
+            proc.wait_async(null, (_proc, result) => {
+                try {
+                    _proc.wait_finish(result);
+                } catch (e) {
+                    logError(e, 'Voxput: wtype failed');
+                }
+            });
+        } catch (e) {
+            logError(e, 'Voxput: auto-paste failed — is wtype installed?');
+            Main.notifyError(_('Voxput'), _('Auto-paste failed: wtype not found.'));
         }
     }
 

@@ -74,6 +74,18 @@ export default class VoxputPreferences extends ExtensionPreferences {
         );
         notifGroup.add(notifRow);
 
+        const autoPasteRow = new Adw.SwitchRow({
+            title: _('Auto-paste transcript'),
+            subtitle: _('Type the transcript into the focused window automatically. Requires wtype.'),
+        });
+        settings.bind(
+            'auto-paste',
+            autoPasteRow,
+            'active',
+            Gio.SettingsBindFlags.DEFAULT,
+        );
+        notifGroup.add(autoPasteRow);
+
         // ---- Daemon group ----
         const daemonGroup = new Adw.PreferencesGroup({
             title: _('Daemon'),

@@ -42,7 +42,7 @@ let
   cfg = config.services.voxput;
   inherit (lib)
     mkEnableOption mkOption mkIf mkMerge types literalExpression
-    optionalAttrs optionalString;
+    optionalAttrs optionalString optionals;
 
   # Build the config.toml text from module options.
   # Only sections/keys that are set are emitted so the file stays minimal.
@@ -161,6 +161,16 @@ in
         default = true;
         description = "Show a GNOME notification when transcription completes.";
       };
+
+      autoPaste = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Automatically type the transcript into the focused window after
+          transcription completes.  Requires `wtype` (added to packages
+          automatically when enabled).
+        '';
+      };
     };
   };
 
@@ -223,7 +233,8 @@ in
       #   ];
       #
       # (Home Manager 23.11+; this merges correctly with other extensions.)
-      home.packages = [ cfg.gnome.package ];
+      home.packages = [ cfg.gnome.package ]
+        ++ optionals cfg.gnome.autoPaste [ pkgs.wtype ];
 
       # Extension-specific settings (safe to set from a module — these are
       # scoped to the extension's own GSettings schema path)
@@ -231,6 +242,7 @@ in
         toggle-recording = cfg.gnome.shortcut;
         show-transcript-notification = cfg.gnome.showNotification;
         daemon-auto-start = true;
+        auto-paste = cfg.gnome.autoPaste;
       };
     })
 

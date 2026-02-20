@@ -21,5 +21,11 @@
       <description>Automatically start voxputd if it is not already running when the extension activates.</description>
     </key>
 
+    <key name="auto-paste" type="b">
+      <default>false</default>
+      <summary>Auto-paste transcript</summary>
+      <description>Automatically type the transcript into the focused window after transcription completes. Requires wtype to be installed.</description>
+    </key>
+
   </schema>
 </schemalist>
