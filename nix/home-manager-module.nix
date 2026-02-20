@@ -175,7 +175,7 @@ in
           configuration (not Home Manager):
 
           ```nix
-          services.ydotool.enable = true;
+          programs.ydotool.enable = true;
           ```
 
           `pkgs.ydotool` is added to your user packages automatically.
